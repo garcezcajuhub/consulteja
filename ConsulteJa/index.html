@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>ConsulteJá</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 15px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 12px;
+            border-radius: 8px;
+            border: none;
+            background: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover {
+            background: #005fcc;
+        }
+        #resultado img {
+            max-width: 200px;
+            margin-top: 15px;
+        }
+        .historico {
+            margin-top: 25px;
+            text-align: left;
+            font-size: 14px;
+        }
+        .item-historico {
+            background: #e9eef4;
+            padding: 8px;
+            border-radius: 8px;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>ConsulteJá</h2>
+    <p>Digite o código de barras:</p>
+    <input type="text" id="barcode" placeholder="Ex: 7894900010015">
+    <button onclick="consultar()">Consultar</button>
+
+    <div id="resultado"></div>
+
+    <div class="historico">
+        <h3>Histórico de Consultas</h3>
+        <div id="listaHistorico"></div>
+    </div>
+</div>
+
+<script>
+let historico = JSON.parse(localStorage.getItem("historico")) || [];
+let precosLocal = JSON.parse(localStorage.getItem("precosLocal")) || {};
+
+async function consultar() {
+    let codigo = document.getElementById("barcode").value.trim();
+    let url = `https://br.openfoodfacts.org/api/v0/product/${codigo}.json`;
+
+    try {
+        const apiResponse = await fetch(url);
+        const apiData = await apiResponse.json();
+
+        const precoResponse = await fetch("produtos.json");
+        const listaPrecos = await precoResponse.json();
+        const itemPreco = listaPrecos.find(p => p.codigo === codigo);
+        let preco = itemPreco ? `R$ ${itemPreco.preco}` : (precosLocal[codigo] ? `R$ ${precosLocal[codigo]}` : null);
+
+        if (apiData.status === 1) {
+            let produto = apiData.product;
+
+            document.getElementById("resultado").innerHTML = `
+                <h3>${produto.product_name || "Sem nome"}</h3>
+                <p><strong>Marca:</strong> ${produto.brands || "Não informada"}</p>
+                <p><strong>Categoria:</strong> ${produto.categories || "Não informada"}</p>
+                <p><strong>Preço:</strong> ${preco ? preco : "Preço não cadastrado"}</p>
+                ${preco ? "" : `<input type='text' id='novoPreco' placeholder='Digite o preço'> <button onclick="salvarPreco('${codigo}')">Salvar Preço</button>`}
+                <img src="${produto.image_url || ""}" alt="Imagem do produto">
+            `;
+
+            historico.unshift(codigo);
+            localStorage.setItem("historico", JSON.stringify(historico));
+            mostrarHistorico();
+        } else {
+            document.getElementById("resultado").innerHTML = "<p>Produto não encontrado.</p>";
+        }
+    } catch (erro) {
+        document.getElementById("resultado").innerHTML = "<p>Erro ao consultar. Verifique a conexão.</p>";
+    }
+}
+
+function salvarPreco(codigo) {
+    let valor = document.getElementById("novoPreco").value.trim();
+    if (!valor) return;
+    precosLocal[codigo] = valor;
+    localStorage.setItem("precosLocal", JSON.stringify(precosLocal));
+    consultar();
+}
+
+function mostrarHistorico() {
+    let historicoDiv = document.getElementById("listaHistorico");
+    historicoDiv.innerHTML = historico
+        .slice(0, 5)
+        .map(c => `<div class="item-historico">${c}</div>`)
+        .join("");
+}
+mostrarHistorico();
+</script>
+
+</body>
+</html>
